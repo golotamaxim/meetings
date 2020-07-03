@@ -12,10 +12,9 @@ import java.util.Set;
 public class MeetingDetails {
 
     @Id
-    long id;
+    String uuid;
     String topic;
     String user_name;
-    String uuid;
     int duration;
     String host_id;
     int participants_count;

@@ -1,6 +1,7 @@
 package com.church.meetings.services;
 
 import com.church.meetings.dto.ListOfMeetings;
+import com.church.meetings.dto.ListOfParticipants;
 import com.church.meetings.models.MeetingDetails;
 import com.church.meetings.models.Participant;
 import com.church.meetings.utils.Constants;
@@ -12,6 +13,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -36,30 +38,31 @@ public class ZoomService {
 
     LocalDate lastSunday;
 
-    public HttpEntity<MeetingDetails> entity;
-
-    {
-
-    }
+    public HttpEntity entity;
 
     public MeetingDetails getMeetingDetailsFromZoomAccount() {
         setHeadersForResponseEntity();
         RestTemplate restTemplate = new RestTemplate();
-        ResponseEntity<ListOfMeetings> response = restTemplate.exchange(allMeetingsUrl, HttpMethod.GET, entity, ListOfMeetings.class, setParamsForMeetingDetails());
+        ResponseEntity<ListOfMeetings> response = restTemplate.exchange(buildUrlForMeetingDetails(allMeetingsUrl),
+                HttpMethod.GET, entity, ListOfMeetings.class);
         System.out.println(response.getStatusCode());
         List<MeetingDetails> lastMeetings = response.getBody().getMeetings();
-        System.out.println(lastMeetings.size());
 
         Optional<MeetingDetails> longMeeting = lastMeetings.stream()
                 .filter(meeting -> Constants.LORDS_TABLE.equals(meeting.getTopic()))
                 .max(Comparator.comparing(MeetingDetails::getDuration));
-        System.out.println(longMeeting.isPresent());
 
-        return longMeeting.orElseThrow(() -> new RuntimeException(StringFormatter.format("There wasn't %s on last sunday", Constants.LORDS_TABLE).toString()));
+        return longMeeting.orElseThrow(() -> new RuntimeException(StringFormatter.format("В это воскресенье не было %s", Constants.LORDS_TABLE).getValue()));
     }
 
     public Set<Participant> getParticipantByMeetingUuid(String uuid) {
-        return null;
+        setHeadersForResponseEntity();
+        RestTemplate restTemplate = new RestTemplate();
+        ResponseEntity<ListOfParticipants> response = restTemplate
+                .exchange(meetingWithParticipantsUrl, HttpMethod.GET, entity, ListOfParticipants.class, uuid);
+        System.out.println(response.getStatusCode());
+        List<Participant> participants = response.getBody().getParticipants();
+        return new HashSet<>(participants);
     }
 
     private Map<String, String> setParamsForMeetingDetails() {
@@ -70,6 +73,15 @@ public class ZoomService {
         return parameters;
     }
 
+    private String buildUrlForMeetingDetails(String url) {
+        return UriComponentsBuilder.fromHttpUrl(url)
+//                .replaceQueryParam("userId", user)
+                .queryParam("from", getMeetingDate())
+                .queryParam("to", getMeetingDate())
+                .buildAndExpand(user)
+                .toUriString();
+    }
+
     private void setHeadersForResponseEntity() {
         HttpHeaders headers = new HttpHeaders();
         headers.add("authorization", "Bearer " + token);
@@ -78,7 +90,7 @@ public class ZoomService {
     }
 
     private String getMeetingDate() {
-        lastSunday = LocalDate.now().with(TemporalAdjusters.previous(DayOfWeek.WEDNESDAY));
+        lastSunday = LocalDate.now().with(TemporalAdjusters.previous(DayOfWeek.SUNDAY));
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         return lastSunday.format(formatter);
     }

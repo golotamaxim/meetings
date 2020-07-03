@@ -9,10 +9,10 @@ import javax.persistence.*;
 public class Participant {
 
     @Id
-    String id;
+    Long user_id;
     String name;
     String user_email;
-    long userId;
+//    long userId;
     int duration;
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     MeetingDetails meeting;
